@@ -78,6 +78,24 @@ button.ghost{background:#fff;border:1px solid var(--line);border-radius:8px;padd
 .card .sub{color:var(--sub);font-size:13px}
 details{margin-top:8px;font-size:13px}
 summary{cursor:pointer;color:var(--sub)}
+.setup{margin-top:20px}
+.setup-grid{display:grid;grid-template-columns:1fr 1.1fr;gap:16px;align-items:start}
+.rules{width:100%;border-collapse:collapse;font-size:13px}
+.rules td{border-top:1px solid var(--line);padding:6px 4px;vertical-align:middle}
+.rules td:last-child{text-align:right;white-space:nowrap}
+.rules input[type=number]{width:72px;padding:4px 6px;font-family:var(--mono)}
+.rules select{width:auto;padding:4px 6px;font-size:13px}
+.src{font-size:11.5px;color:var(--sub);display:block}
+.facts{list-style:none;margin:0;padding:0}
+.facts li{display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:12.5px}
+.badge{font:11px var(--mono);border-radius:5px;padding:1px 6px;white-space:nowrap}
+.badge.v{background:var(--acc-soft);color:var(--acc)}
+.badge.u{background:#F3F1EA;color:#6B5B1E}
+.badge.c{background:var(--warn-soft);color:var(--warn)}
+.confirm{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:10px;background:#F3F1EA;border-radius:8px;padding:8px 10px}
+.status{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:13.5px}
+.status .st{font-weight:600}
+@media (max-width:860px){.setup-grid{grid-template-columns:1fr}}
 footer{border-top:1px solid var(--line);color:var(--sub);font-size:13px;padding:18px 0 30px}
 @media (max-width:1020px){.grid{grid-template-columns:1fr 1fr}.col.owner{grid-column:1 / -1}}
 @media (max-width:680px){.grid{grid-template-columns:1fr}.hero h1{font-size:24px}header .wrap{flex-wrap:wrap}.pill{white-space:normal}}
@@ -93,15 +111,28 @@ footer{border-top:1px solid var(--line);color:var(--sub);font-size:13px;padding:
     <h1>Customers ask for refunds in their own words. Mendary checks the real PayPal order, applies your policy, and sends the refund after you tap Approve.</h1>
     <p>The AI reads and writes words. Plain code sets the money and can never go above your policy or what was paid. Nothing moves until the owner approves.</p>
     <ol class="flow">
-      <li><b>1</b>Buy with PayPal</li><li><b>2</b>Ask for a refund in plain words</li><li><b>3</b>AI reads it, code sets the amount</li><li><b>4</b>Owner approves, PayPal refunds</li>
+      <li><b>0</b>Owner writes the policy, AI turns it into rules</li><li><b>1</b>Buy with PayPal</li><li><b>2</b>Ask for a refund in plain words</li><li><b>3</b>AI reads it, code sets the amount</li><li><b>4</b>Owner approves, PayPal refunds</li>
     </ol>
-    <div class="demo"><b>Try it yourself (sandbox, no real money).</b> Pay with the test buyer <code>__BUYER_EMAIL__</code> password <code>__BUYER_PASS__</code>. Then ask for a refund in column 2 and approve it in column 3. In this demo anyone can open the owner desk.</div>
+    <div class="demo"><b>Try it yourself (sandbox, no real money).</b> Pay with the test buyer <code>__BUYER_EMAIL__</code> password <code>__BUYER_PASS__</code>. Then ask for a refund in column 2 and approve it in column 3. In this demo anyone can use the owner side (policy setup and owner desk).</div>
+  </section>
+
+  <section class="setup col" id="setup">
+    <h2><i>0</i>Policy setup</h2>
+    <p class="who">The owner writes the refund policy in plain words once. AI drafts rules, the owner checks them, code enforces them.</p>
+    <div class="setup-grid">
+      <div>
+        <label class="field"><span>Your refund policy, in your own words</span><textarea id="ownerText" style="min-height:190px"></textarea></label>
+        <button class="primary" id="draftBtn">Draft rules with AI</button>
+        <div class="err" id="draftErr"></div>
+      </div>
+      <div id="rulesPane"></div>
+    </div>
   </section>
 
   <section class="grid">
     <div class="col">
       <h2><i>1</i>Shop</h2>
-      <p class="who">North Pier Goods, a made-up small shop</p>
+      <p class="who">North Pier Goods, demo shop on the PayPal sandbox</p>
       <div id="catalog"></div>
       <div class="total"><span>Total incl. shipping</span><span id="total">USD 0.00</span></div>
       <div id="paypal-buttons"></div>
@@ -185,20 +216,26 @@ function chips() {
 }
 
 function decisionTag(d) {
+  if ((d.action === 'full' || d.action === 'partial') && d.confirm) return `<span class="tag">${d.action} refund ${money(d.amount)} after owner check</span>`;
   if (d.action === 'full' || d.action === 'partial') return `<span class="tag ok">${d.action} refund ${money(d.amount)}</span>`;
   if (d.action === 'deny') return '<span class="tag no">decline</span>';
+  if (d.confirm) return `<span class="tag">owner must confirm</span>`;
   return '<span class="tag">owner to review</span>';
 }
 function aiBox(a) {
   return `<div class="box"><h3>AI reading (${esc(a.model || '')})</h3><dl class="kv">
     <dt>Category</dt><dd>${esc(a.category)}</dd><dt>Items</dt><dd>${esc(a.skus.length ? a.skus.join(', ') : 'whole order')}</dd>
-    <dt>Condition</dt><dd>${esc(a.condition)}</dd><dt>Asked for</dt><dd>${a.requested_amount == null ? 'no amount' : money(a.requested_amount)}</dd>
+    <dt>Condition</dt><dd>${esc(a.condition.replace('_', ' '))}</dd>${a.claimed_days_to_arrival != null ? `<dt>Says arrived</dt><dd>${a.claimed_days_to_arrival} days after payment</dd>` : ''}<dt>Asked for</dt><dd>${a.requested_amount == null ? 'no amount' : money(a.requested_amount)}</dd>
     <dt>Clause</dt><dd>${esc(a.policy_clause)}</dd><dt>Confidence</dt><dd>${Number(a.confidence).toFixed(2)}</dd>
     <dt>Summary</dt><dd style="font-family:inherit">${esc(a.summary)}</dd>
     ${a.red_flags.length ? `<dt class="flag">Red flags</dt><dd class="flag">${esc(a.red_flags.join('; '))}</dd>` : ''}</dl></div>`;
 }
+function factsBox(d) {
+  if (!d.checks) return '';
+  return `<div class="box"><h3>What is verified</h3><ul class="facts">${d.checks.map((c) => `<li><span class="badge ${c.conflict ? 'c' : (c.verified ? 'v' : 'u')}">${c.conflict ? 'conflict' : (c.verified ? 'verified' : 'unverified')}</span><span>${esc(c.fact)}<span class="src">${esc(c.source)}</span></span></li>`).join('')}</ul></div>`;
+}
 function codeBox(d) {
-  return `<div class="box"><h3>Policy code (decides the money)</h3><ol class="calc">${d.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ol>
+  return factsBox(d) + `<div class="box"><h3>Policy code (decides the money)</h3><ol class="calc">${d.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ol>
     <p style="margin:8px 0 0">${decisionTag(d)} <span class="tag">${esc(d.clause)}</span> ${esc(d.reason)}</p></div>`;
 }
 
@@ -208,10 +245,55 @@ $('#ask').onclick = async () => {
   try {
     const r = await api('/api/requests', { method: 'POST', body: JSON.stringify({ orderId: $('#orderId').value, message: $('#msg').value }) });
     r.ai.model = r.model.split('/').pop();
-    $('#askOut').innerHTML = `<div class="box"><h3>Reply to customer</h3>${esc(r.reply.text)}</div>` + aiBox(r.ai) + codeBox(r.decision);
+    $('#askOut').innerHTML = `<div class="status" id="custStatus"></div><div class="box"><h3>Reply to customer</h3>${esc(r.reply.text)}</div><details><summary>How Mendary read this</summary>` + aiBox(r.ai) + codeBox(r.decision) + '</details>';
+    watchStatus(r.id);
     loadQueue();
   } catch (e) { $('#askOut').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; }
   btn.disabled = false; btn.textContent = 'Send request';
+};
+
+let watchTimer = null;
+const STATES = { awaiting_owner: 'Waiting for the shop owner to review', needs_info: 'The shop owner will reply: more information needed', proposed_deny: 'Waiting for the shop owner (proposed: decline)', refunded: 'Refund sent', declined: 'Declined by the shop owner' };
+async function watchStatus(id) {
+  clearInterval(watchTimer);
+  const draw = async () => {
+    try {
+      const st = await api('/api/requests/' + id);
+      $('#custStatus').innerHTML = `<div class="st">${esc(STATES[st.state] || st.state)}</div><div class="src">Request ${esc(st.id)}, sent ${esc(st.createdAt.slice(11, 16))} UTC</div>` +
+        (st.refund ? `<dl class="kv" style="margin-top:6px"><dt>Refund ID</dt><dd>${esc(st.refund.id)}</dd><dt>Status</dt><dd>${esc(st.refund.status)}</dd><dt>Amount</dt><dd>${esc(st.refund.amount.currency_code)} ${esc(st.refund.amount.value)}</dd></dl>` : '');
+      if (st.state === 'refunded' || st.state === 'declined') clearInterval(watchTimer);
+    } catch (e) {}
+  };
+  await draw(); watchTimer = setInterval(draw, 4000);
+}
+
+function ruleInput(k, sc, v) {
+  if (sc.type === 'int') return `<input type="number" data-k="${k}" min="${sc.min}" max="${sc.max}" value="${v}">`;
+  if (sc.type === 'bool') return `<select data-k="${k}"><option value="true" ${v ? 'selected' : ''}>yes</option><option value="false" ${!v ? 'selected' : ''}>no</option></select>`;
+  return `<select data-k="${k}">${sc.values.map((x) => `<option ${x === v ? 'selected' : ''}>${x}</option>`).join('')}</select>`;
+}
+function renderRules(rules, opts = {}) {
+  const sc = CFG.schema;
+  const noteOf = Object.fromEntries((opts.notes || []).map((n) => [n.key, n.note]));
+  const mapOf = {}; (opts.mapped || []).forEach((m) => { (mapOf[m.key] = mapOf[m.key] || []).push(m.sentence); });
+  const rows = Object.keys(sc).map((k) => `<tr><td>${esc(sc[k].label)}${mapOf[k] ? `<span class="src">from: "${esc(mapOf[k][0])}"</span>` : ''}${noteOf[k] ? `<span class="src flag">${esc(noteOf[k])}</span>` : ''}</td><td>${opts.edit ? ruleInput(k, sc[k], rules[k]) : `<code style="font:12.5px var(--mono)">${esc(typeof rules[k] === 'boolean' ? (rules[k] ? 'yes' : 'no') : String(rules[k]).replace(/_/g, ' '))}</code>`}</td></tr>`).join('');
+  const unsup = (opts.unsupported || []).length ? `<div class="box"><h3>Not enforced by code (goes to owner review)</h3><ul class="calc">${opts.unsupported.map((u) => `<li style="font-family:inherit">${esc(u)}</li>`).join('')}</ul></div>` : '';
+  $('#rulesPane').innerHTML = `<div class="box" style="margin-top:0"><h3>${opts.edit ? 'AI draft: check and edit, then save' : 'Rules in force' + (CFG.policy.savedAt ? ' (saved ' + esc(CFG.policy.savedAt.slice(0, 16).replace('T', ' ')) + ' UTC)' : ' (default)')}</h3><table class="rules">${rows}</table></div>${unsup}` +
+    (opts.edit ? `<div class="actions"><button class="primary" id="saveRules">Save rules</button><button class="ghost" id="cancelRules">Cancel</button></div>` : '');
+  if (opts.edit) {
+    $('#saveRules').onclick = async () => {
+      const out = {}; $('#rulesPane').querySelectorAll('[data-k]').forEach((el) => { const s0 = sc[el.dataset.k]; out[el.dataset.k] = s0.type === 'int' ? Number(el.value) : (s0.type === 'bool' ? el.value === 'true' : el.value); });
+      const saved = await api('/api/policy', { method: 'POST', body: JSON.stringify({ rules: out, ownerText: $('#ownerText').value }) });
+      CFG.policy = saved; renderRules(saved.rules);
+    };
+    $('#cancelRules').onclick = () => renderRules(CFG.policy.rules);
+  }
+}
+$('#draftBtn').onclick = async () => {
+  const b = $('#draftBtn'); b.disabled = true; b.textContent = 'Reading your policy'; $('#draftErr').textContent = '';
+  try { const d = await api('/api/policy/draft', { method: 'POST', body: JSON.stringify({ text: $('#ownerText').value }) }); renderRules(d.rules, { edit: true, notes: d.notes, mapped: d.mapped, unsupported: d.unsupported }); }
+  catch (e) { $('#draftErr').textContent = e.message; }
+  b.disabled = false; b.textContent = 'Draft rules with AI';
 };
 
 function card(r) {
@@ -220,7 +302,7 @@ function card(r) {
   const model = r.model.split('/').pop();
   const stTag = `<span class="tag ${r.state === 'refunded' ? 'ok' : (r.state === 'declined' || r.state === 'proposed_deny' ? 'no' : '')}">${esc(r.state.replace('_', ' '))}</span>`;
   const evLine = `<div class="evline"><span>Paid <b>${money(ev.captured)}</b></span><span>Refunded <b>${money(ev.refunded)}</b></span><span>Capture <code>${esc(ev.captureId)}</code></span></div>`;
-  const aiLine = `<div class="ailine"><span class="tag">${esc(a.category)}</span><span class="tag">${esc(a.skus.length ? a.skus.join(', ') : 'whole order')}</span><span class="tag">${esc(a.condition)}</span>${a.requested_amount != null ? `<span class="tag">asked ${money(a.requested_amount)}</span>` : ''}${a.red_flags.length ? `<span class="tag no">${a.red_flags.length} red flag${a.red_flags.length > 1 ? 's' : ''}</span>` : ''}</div>`;
+  const aiLine = `<div class="ailine"><span class="tag">${esc(a.category)}</span><span class="tag">${esc(a.skus.length ? a.skus.join(', ') : 'whole order')}</span><span class="tag">${esc(a.condition.replace('_', ' '))}</span>${a.requested_amount != null ? `<span class="tag">asked ${money(a.requested_amount)}</span>` : ''}${a.red_flags.length ? `<span class="tag no">${a.red_flags.length} red flag${a.red_flags.length > 1 ? 's' : ''}</span>` : ''}</div>`;
   const blocked = (r.blocked || []).map((b) => `<div class="err">Blocked by code: owner tried ${money(b.wanted)}, cap ${money(b.cap)}</div>`).join('');
   const more = `<details><summary>Full AI reading and PayPal evidence</summary>${aiBox({ ...a, model })}<div class="box"><h3>PayPal evidence (live from Orders v2)</h3><dl class="kv"><dt>Order</dt><dd>${esc(r.orderId)}</dd><dt>Capture</dt><dd>${esc(ev.captureId)} ${esc(ev.captureStatus)}</dd><dt>Items</dt><dd>${esc(ev.items.map((i) => i.sku).join(', '))}</dd><dt>Refunds</dt><dd>${esc(ev.refunds.map((x) => x.id + ' ' + x.amount).join(', ') || 'none')}</dd></dl></div></details>`;
   if (done) {
@@ -231,6 +313,7 @@ function card(r) {
     <blockquote>${esc(r.message)}</blockquote>${evLine}${aiLine}${codeBox(d)}
     <div class="box"><h3>Drafted reply${r.reply.guarded ? ' (safe template: AI draft failed the check)' : ''}</h3>${esc(r.reply.text)}</div>
     ${blocked}${more}
+    ${d.confirm ? `<label class="confirm"><input type="checkbox" id="cf_${r.id}"> <span>${esc(d.confirm)} <span class="src">Delivery facts are the customer's word until you check them.</span></span></label>` : ''}
     <div class="actions"><input type="number" step="0.01" min="0" value="${d.amount.toFixed(2)}" id="amt_${r.id}" aria-label="Refund amount">
       <button class="primary" data-ap="${r.id}" ${d.amount > 0 ? '' : 'disabled'}>Approve and refund</button><button class="ghost" data-de="${r.id}">Decline</button></div><div class="err" id="err_${r.id}"></div>
   </div>`;
@@ -241,14 +324,14 @@ async function loadQueue() {
     $('#queue').innerHTML = list.length ? list.map(card).join('') : '<div class="empty">No requests yet. Buy something in column 1, then ask for a refund in column 2.</div>';
     $('#queue').querySelectorAll('[data-ap]').forEach((b) => b.onclick = async () => {
       const id = b.dataset.ap; b.disabled = true; b.textContent = 'Sending to PayPal';
-      try { await api('/api/requests/' + id + '/approve', { method: 'POST', body: JSON.stringify({ amount: Number($('#amt_' + id).value) }) }); loadQueue(); }
+      try { await api('/api/requests/' + id + '/approve', { method: 'POST', body: JSON.stringify({ amount: Number($('#amt_' + id).value), confirmed: !!($('#cf_' + id) && $('#cf_' + id).checked) }) }); loadQueue(); }
       catch (e) { $('#err_' + id).textContent = e.message; b.disabled = false; b.textContent = 'Approve and refund'; if (e.status === 422) setTimeout(loadQueue, 1500); }
     });
     $('#queue').querySelectorAll('[data-de]').forEach((b) => b.onclick = async () => { await api('/api/requests/' + b.dataset.de + '/decline', { method: 'POST' }); loadQueue(); });
   } catch (e) { $('#queue').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; }
 }
 
-(async () => { CFG = await api('/api/config'); cart['MUG-01'] = 1; renderCatalog(); chips(); setupButtons(); loadQueue(); })();
+(async () => { CFG = await api('/api/config'); $('#ownerText').value = CFG.policy.ownerText; renderRules(CFG.policy.rules); cart['MUG-01'] = 1; renderCatalog(); chips(); setupButtons(); loadQueue(); })();
 </script>
 </body>
 </html>
