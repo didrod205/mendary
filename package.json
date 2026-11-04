@@ -1,0 +1,12 @@
+{
+  "name": "mendary",
+  "version": "1.0.0",
+  "description": "AI refund desk for small online shops on PayPal: AI reads the request, code sets the amount, the owner approves, PayPal refunds.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node test/policy.test.mjs",
+    "build": "python3 scripts/deploy.py --build-only",
+    "dev": "npx wrangler dev"
+  }
+}

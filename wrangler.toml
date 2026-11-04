@@ -1,0 +1,17 @@
+# Optional: run or deploy with Wrangler instead of scripts/deploy.py
+name = "mendary"
+main = "src/worker.mjs"
+compatibility_date = "2025-09-01"
+
+[ai]
+binding = "AI"
+
+[[kv_namespaces]]
+binding = "DB"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+PAYPAL_CLIENT_ID = "REPLACE_WITH_YOUR_SANDBOX_CLIENT_ID"
+DEMO_BUYER_EMAIL = ""
+DEMO_BUYER_PASSWORD = ""
+# PAYPAL_CLIENT_SECRET is a secret: `npx wrangler secret put PAYPAL_CLIENT_SECRET` (or put it in .dev.vars for `wrangler dev`)
